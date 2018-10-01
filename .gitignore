@@ -1,0 +1,11 @@
+pyderproject
+.idea/*
+/**/__pycache__
+/**/.ipynb_checkpoints
+/.doit.db.bak
+/.doit.db.dat
+/.doit.db.dir
+
+
+/**/data
+/**/temp
