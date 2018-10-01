@@ -2,22 +2,21 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 from torch import optim
-from load_data import *
 import torch.nn.functional as F
 
 
 '''
 Constants
-''' 
-NUM_EPOCHS = 5
-BATCH_SIZE = 100
+'''
+NUM_EPOCHS = 10
+BATCH_SIZE = 256
 LR = 0.005
-NUM_FEATURES = 47 # original: 128, trimmed: 47 (34 - 81)
-SEQ_LEN = 48
+NUM_FEATURES = 9 # original: 128, trimmed: 47 (34 - 81)
+SEQ_LEN = 96
 NUM_BARS = 1
 NUM_BEATS_PER_BAR = 4
-NUM_DIRECTIONS = 1
-GRU_HIDDEN_SIZE = 2
+NUM_DIRECTIONS = 2
+GRU_HIDDEN_SIZE = 16
 LINEAR_HIDDEN_SIZE = [64, 32]
 
 ACTIVATION = 'relu'
@@ -37,40 +36,6 @@ else:
     print('run on CPU')
 
 
-'''
-load files & data
-'''
-files = []
-valid_count_list = []
-valid_positions = []
-valid_count_total = 0
-
-files = getListOfFiles(PATH)
-valid_count_list, valid_positions = get_valid_data(files, 200, 0)
-valid_count_total = valid_count_list[-1]
-
-dataset = PianorollDataset(
-    PATH,
-    valid_count_total,
-    valid_count_list,
-    valid_positions,
-)
-
-training_dataloader = DataLoader(
-    dataset,
-    batch_size=BATCH_SIZE,
-    shuffle=True,
-    drop_last=True,
-)
-
-testing_dataloader = DataLoader(
-    dataset,
-    batch_size=BATCH_SIZE,
-    shuffle=False,
-    drop_last=True,
-)
-
-
 class Encoder(torch.nn.Module):
 
     def __init__(self):
@@ -81,7 +46,7 @@ class Encoder(torch.nn.Module):
             hidden_size=GRU_HIDDEN_SIZE,
             bias=True,
             batch_first=True,
-            bidirectional=False,
+            bidirectional=True,
         )
         
         self.gru_out_dim = SEQ_LEN * GRU_HIDDEN_SIZE * NUM_DIRECTIONS
@@ -145,7 +110,7 @@ class Decoder(torch.nn.Module):
             SEQ_LEN,
             NUM_FEATURES)
 
-        for i in range(4):
+        for i in range(8):
             x, hn = self.gru(x, hn)
             x = self.bn1(x)
             out = self.bn2(self.linear1(x[:,:12,:]))
@@ -229,57 +194,3 @@ def plot_track(track, cmap='Blues', single=True, bres=3):
     if single:
         x = axs.set_xlim(0, BAR_DIVISION)
     plt.show()
-
-if __name__ == '__main__':
-    for batch_i, (roll, filename) in enumerate(training_dataloader):
-        if batch_i > 0:
-            break
-        with torch.no_grad():
-            roll = Variable(roll).type(torch.float32).to(device)
-            roll_reconstruct = vae(roll)
-
-
-            for i in range(len(roll)):
-                if i < 5:
-                    roll_i = roll[i].cpu().data.numpy()
-                    roll_i = np.append(
-                        np.zeros(((roll_i.shape[0]), 34)),
-                        roll_i,
-                        axis=1)
-                    roll_i = np.append(
-                        roll_i,
-                        np.zeros((roll_i.shape[0], 47)),
-                        axis=1)
-                    track = Track(pianoroll=roll_i)
-                    # print(roll_i.max(), roll_i.min())
-
-
-
-                    out = roll_reconstruct[i].cpu().data.numpy()
-                    # print(out.max(), out.min())
-                    # out = np.where(out > 5e-2, 128, 0)
-                    # out = out * 32
-                    out = np.append(
-                        np.zeros(((out.shape[0]), 34)),
-                        out,
-                        axis=1)
-                    out = np.append(
-                        out,
-                        np.zeros((out.shape[0], 47)),
-                        axis=1)
-
-                    track_reconstruct = Track(pianoroll=out)
-                    plot_track(track)
-                    plot_track(track_reconstruct, cmap='Oranges')
-
-    testing_loss = loss_sum_test / len(testing_dataloader.dataset)
-    model_file_name = '_'.join([
-        './models/model',
-        'L{}'.format(LR),
-        'loss{:.0f}'.format(err),
-         ACTIVATION,
-        'gru{}'.format(GRU_HIDDEN_SIZE),
-        'e{}'.format(NUM_EPOCHS),
-        'b{}'.format(BATCH_SIZE)])
-
-    torch.save(vae.state_dict(), model_file_name + '.pt')
