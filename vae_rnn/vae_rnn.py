@@ -3,6 +3,8 @@ import torch
 from torch.autograd import Variable
 from torch import optim
 import torch.nn.functional as F
+from pypianoroll import Multitrack, Track
+from matplotlib import pyplot as plt
 
 
 '''
@@ -159,7 +161,7 @@ class VAE(torch.nn.Module):
 
 
 
-def elbo(recon_tracks, tracks, mu, sigma):
+def elbo(recon_tracks, tracks, mu, sigma, beta=0.5):
     """
     Args:
         recon_x: generating images
@@ -172,7 +174,7 @@ def elbo(recon_tracks, tracks, mu, sigma):
         tracks,
         reduction='sum',
     )
-    KLD = 0.5 * torch.sum(mu * mu + sigma.exp() - sigma - 1)
+    KLD = beta * torch.sum(mu * mu + sigma.exp() - sigma - 1)
     return BCE + KLD
 
 
@@ -193,4 +195,21 @@ def plot_track(track, cmap='Blues', single=True, bres=3):
     y = axs.set_ylim(34, 81) # C0 - C2
     if single:
         x = axs.set_xlim(0, BAR_DIVISION)
+    plt.show()
+    
+def pltReducedDrumTrack(track, beat_resolution=12, cmap='Blues'):
+    track = np.append(track, np.zeros((track.shape[0], 119)), axis=1)
+    # track = np.where(track == 1, 128, 0)
+    track = track * 128
+    track = Track(pianoroll=track)
+    
+    fig, axs = track.plot(
+        xtick='beat',
+        yticklabel='number',
+        beat_resolution=beat_resolution,
+        cmap=cmap,
+    )
+    fig.set_size_inches(30,10)
+    y = axs.set_ylim(0, 10) # C0 - C2
+    y = axs.set_yticks(range(10))
     plt.show()
