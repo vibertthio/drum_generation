@@ -10,20 +10,29 @@ from matplotlib import pyplot as plt
 '''
 Constants
 '''
-NUM_EPOCHS = 10
 BATCH_SIZE = 256
-LR = 0.005
 NUM_FEATURES = 9 # original: 128, trimmed: 47 (34 - 81)
 SEQ_LEN = 96
+BEAT = 48
 NUM_BARS = 1
 NUM_BEATS_PER_BAR = 4
 NUM_DIRECTIONS = 2
 GRU_HIDDEN_SIZE = 16
+# GRU_HIDDEN_SIZE = 32
+# 1.
 LINEAR_HIDDEN_SIZE = [64, 32]
+# 2.
+# LINEAR_HIDDEN_SIZE = [128, 64]
+# 3.
+# LINEAR_HIDDEN_SIZE = [128, 32]
 
-ACTIVATION = 'relu'
-activation_function = torch.relu
-activation_function_out = torch.relu
+# ACTIVATION = 'relu'
+# activation_function = torch.relu
+# activation_function_out = torch.relu
+
+ACTIVATION = 'tanh'
+activation_function = torch.tanh
+activation_function_out = torch.tanh
 
 
 '''
@@ -75,9 +84,9 @@ class Encoder(torch.nn.Module):
 
 class Decoder(torch.nn.Module):
 
-    def __init__(self):
+    def __init__(self, beat=BEAT):
         super(Decoder, self).__init__()
-        self.beat = 12
+        self.beat = beat
 
         self.gru_in_dim = SEQ_LEN * NUM_FEATURES
         self.linear0 = torch.nn.Linear(
@@ -89,7 +98,7 @@ class Decoder(torch.nn.Module):
         self.linear1 = torch.nn.Linear(
             NUM_FEATURES,
             NUM_FEATURES)
-        self.bn2 = torch.nn.BatchNorm1d(12)
+        self.bn2 = torch.nn.BatchNorm1d(self.beat)
 
         self.gru = torch.nn.GRU(
             input_size=NUM_FEATURES,
@@ -111,12 +120,13 @@ class Decoder(torch.nn.Module):
             BATCH_SIZE,
             SEQ_LEN,
             NUM_FEATURES)
-
-        for i in range(8):
+        n_sections = SEQ_LEN // self.beat
+        b = self.beat
+        for i in range(n_sections):
             x, hn = self.gru(x, hn)
             x = self.bn1(x)
-            out = self.bn2(self.linear1(x[:,:12,:]))
-            melody[:,12*i:(12*i+12),:] = torch.sigmoid(out)
+            out = self.bn2(self.linear1(x[:,:b,:]))
+            melody[:,b*i:b*(i+1),:] = torch.sigmoid(out)
 
         melody = activation_function_out(melody)
         return melody
@@ -174,8 +184,9 @@ def elbo(recon_tracks, tracks, mu, sigma, beta=0.5):
         tracks,
         reduction='sum',
     )
-    KLD = beta * torch.sum(mu * mu + sigma.exp() - sigma - 1)
-    return BCE + KLD
+    # KLD = beta * torch.sum(mu * mu + sigma.exp() - sigma - 1)
+    KLD = torch.sum(mu * mu + sigma.exp() - sigma - 1)
+    return BCE + KLD * beta, BCE, KLD
 
 
 def plot_track(track, cmap='Blues', single=True, bres=3):
