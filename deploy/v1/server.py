@@ -1,5 +1,6 @@
 import os
 from flask import Flask, request, Response
+from flask_cors import CORS
 import numpy as np
 import json
 import pypianoroll
@@ -11,6 +12,7 @@ from vae_rnn import *
 
 app = Flask(__name__)
 app.config['ENV'] = 'development'
+CORS(app)
 
 '''
 laod model
